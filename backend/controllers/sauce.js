@@ -1,54 +1,67 @@
+// Importations
 const Sauce = require('../models/Sauce');
 const fs = require('fs');
 
+// Exports des méthodes
 
+// Création d'une sauce
 exports.createSauce = (req, res, next) => {
     const sauceObject = JSON.parse(req.body.sauce);
-    delete sauceObject._id;
+    // A delete? delete sauceObject._id;
     const sauce = new Sauce({
         ...sauceObject,
+        // Création de l'url de l'image
         imageUrl: `${req.protocol}://${req.get('host')}/images/${req.file.filename}`,
         likes: 0,
         dislikes: 0,
         usersLiked: [],
         usersDisliked: []
     });
+    // enregistre dans la BDD
     sauce.save()
+        // Renvoi un status positive 201
         .then(() => res.status(201).json({ message: 'Objet enregistré !' }))
+        // error = error : error
         .catch(error => res.status(400).json({ error }));
 };
 
-/* Recupere une sauce */
+// Recupere une sauce
 exports.getOneSauce = (req, res, next) => {
     Sauce.findOne({ _id: req.params.id })
         .then(sauce => res.status(200).json(sauce))
         .catch(error => res.status(404).json({ error }));
 };
 
-/* Recupere toutes les sauces */
+// Recupere toutes les sauces
 exports.getAllSauces = (req, res, next) => {
     Sauce.find()
         .then(sauces => res.status(200).json(sauces))
         .catch(error => res.status(400).json({ error }));
 };
 
+// Modifier une sauce
 exports.modifySauce = (req, res, next) => {
+    // Création de sauceObject celon la modification ou non de l'image de la sauce
     const sauceObject = req.file ?
         {
             ...JSON.parse(req.body.sauce),
             imageUrl: `${req.protocol}://${req.get('host')}/images/${req.file.filename}`
         } : { ...req.body };
+    // Récupération de la sauce
     Sauce.findOne({ _id: req.params.id })
         .then(sauce => {
+            // Extraction du nom de l'image
             const currentFilename = sauce.imageUrl.split('/images/')[1];
+            // mise à jour de la sauce
             Sauce.updateOne({ _id: req.params.id }, { ...sauceObject, _id: req.params.id })
                 .then(() => {
                     if (req.file) {
+                        // Supression de l'image précédente
                         fs.unlink(`images/${currentFilename}`, () => {
-                            res.status(200).json({ message: 'Objet modifié !'})
+                            res.status(200).json({ message: 'Objet modifié !' })
                         });
                     } else {
-                        res.status(200).json({ message: 'Objet modifié !'})
+                        res.status(200).json({ message: 'Objet modifié !' })
                     }
 
                 })
@@ -58,11 +71,15 @@ exports.modifySauce = (req, res, next) => {
 
 };
 
+// Supprime une sauce
 exports.deleteSauce = (req, res, next) => {
     Sauce.findOne({ _id: req.params.id })
         .then(sauce => {
+            // Extraction du nom de l'image à supprimer
             const filename = sauce.imageUrl.split('/images/')[1];
+            // Supression de l'image
             fs.unlink(`images/${filename}`, () => {
+                // Suppression de la sauce
                 Sauce.deleteOne({ _id: req.params.id })
                     .then(() => res.status(200).json({ message: "Objet supprimé" }))
                     .catch(error => res.status(400).json({ error }));
@@ -71,13 +88,14 @@ exports.deleteSauce = (req, res, next) => {
         .catch(error => res.status(500).json({ error }));
 };
 
+// Gestion des likes et dislikes des sauces
 exports.likeSauce = (req, res, next) => {
     Sauce.findOne({ _id: req.params.id })
         .then(sauce => {
             // Flags 
             // includes permet de déterminer si un array contient une valeur ( l'userId dans notre cas ) et return un bool
             const isUserLike = sauce.usersLiked.includes(req.body.userId),
-                  isUserDislike = sauce.usersDisliked.includes(req.body.userId);
+                isUserDislike = sauce.usersDisliked.includes(req.body.userId);
 
             // On stock dans des variables car innexistante dans la req
             // les tableau d'utilisateur de like et dislike filtrer dans l'id utilisateur
@@ -87,27 +105,27 @@ exports.likeSauce = (req, res, next) => {
                 nbLikes = sauce.likes,
                 nbDislikes = sauce.dislikes,
                 message = "Successfully ";
-            
+
             if (req.body.like == 1) { // Like
                 // Push l'utilisateur qui like dans le tableau des usersliked
                 filteredArrayUsersLiked.push(req.body.userId);
                 // incrément le nb like
                 nbLikes++;
                 // Si l'utilisateur existait dans le tableau des usersDisliked alors on décrémente les dislikes
-                if(isUserDislike) nbDislikes--;
+                if (isUserDislike) nbDislikes--;
 
                 message += "Liked !";
             } else if (req.body.like == -1) { // Dislike
-                 // Push l'utilisateur qui like dans le tableau des usersDisliked
+                // Push l'utilisateur qui like dans le tableau des usersDisliked
                 filteredArrayUsersDisliked.push(req.body.userId);
                 // incrément le nb dislike
                 nbDislikes++;
-                 // Si l'utilisateur existait dans le tableau des usersLiked alors on décrémente les likes
-                if(isUserLike) nbLikes--;
+                // Si l'utilisateur existait dans le tableau des usersLiked alors on décrémente les likes
+                if (isUserLike) nbLikes--;
 
                 message += "Disliked !";
             } else { // Cancel like or dislike
-                if(isUserLike) nbLikes--;  // Si l'utilisateur existait dans le tableau des usersLiked alors on décrémente les likes
+                if (isUserLike) nbLikes--;  // Si l'utilisateur existait dans le tableau des usersLiked alors on décrémente les likes
                 else if (isUserDislike) nbDislikes--;  // Si l'utilisateur existait dans le tableau des usersDisliked alors on décrémente les dislikes
 
                 message += isUserLike ? "Unliked !" : "Undisliked !";
@@ -122,9 +140,9 @@ exports.likeSauce = (req, res, next) => {
             };
             // Update
             Sauce.updateOne({ _id: req.params.id }, { ...sauceObject, _id: req.params.id })
-            .then(()=> {
-                res.status(200).json({ message });
-            });
+                .then(() => {
+                    res.status(200).json({ message });
+                });
         })
         .catch(error => res.status(400).json({ error }));
 };
